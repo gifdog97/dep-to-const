@@ -41,7 +41,7 @@ def create_leaf(token):
     form = form.replace('(', '-LRB-')
     form = form.replace(')', '-RRB-')
     if token.upos == 'PUNCT':
-        return f'({form} {form})'
+        return f'({form} {form}) '
     return f'({token.upos} {form}) '
 
 def extract_constituency(sentence, token) -> list:
@@ -55,12 +55,12 @@ def extract_constituency(sentence, token) -> list:
         else:
             sub_constituency = extract_constituency(sentence, get_token_with_id(sentence, child_id))
         constituency += sub_constituency
-    return constituency + ') '
+    return constituency.rstrip() + ') '
 
 def flat_converter(sentence: str) -> str:
     assert find_nonprojective_deps(sentence) == []
     head_token = extract_head(sentence)
-    return extract_constituency(sentence, head_token)
+    return extract_constituency(sentence, head_token).rstrip()
 
 if __name__ == '__main__':
     language = 'English'
