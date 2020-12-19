@@ -12,12 +12,58 @@ logger.propagate = False
 
 from const import source_path_mapping
 
+def find_multiword(sentence):
+    for token in sentence:
+        if token.is_multiword():
+            return False
+    return True
+
+def get_token_with_id(sentence, token_id):
+    for token in sentence:
+        if str(token_id) == token.id:
+            return token
+
+def extract_head(sentence):
+    for token in sentence:
+        if token.deprel == 'root':
+            return token
+
+def extract_children(sentence, parent_token) -> list:
+    child_list = [int(parent_token.id)]
+    for token in sentence:
+        if token.head == parent_token.id:
+            child_list.append(int(token.id))
+    return sorted(child_list)
+
+# convert all the parens into -LRB- or -RRB- to resolve ambiguity of phrase structure.
+def create_leaf(token):
+    form = token.form
+    form = form.replace('(', '-LRB-')
+    form = form.replace(')', '-RRB-')
+    if token.upos == 'PUNCT':
+        return f'({form} {form})'
+    return f'({token.upos} {form}) '
+
+def extract_constituency(sentence, token) -> list:
+    children = extract_children(sentence, token)
+    if len(children) == 1:
+        return create_leaf(token)
+    constituency = f'({token.upos}P '
+    for child_id in children:
+        if child_id == int(token.id):
+            sub_constituency = f'({token.upos} {token.form}) '
+        else:
+            sub_constituency = extract_constituency(sentence, get_token_with_id(sentence, child_id))
+        constituency += sub_constituency
+    return constituency + ') '
+
 def flat_converter(sentence: str) -> str:
     assert find_nonprojective_deps(sentence) == []
-    return ""
+    head_token = extract_head(sentence)
+    return extract_constituency(sentence, head_token)
 
 if __name__ == '__main__':
-    language = 'Chinese'
+    language = 'English'
     path_to_ud = '../../../resource/ud-treebanks-v2.7'
     path_to_corpus = os.path.join(path_to_ud, source_path_mapping[language])
 
@@ -31,6 +77,7 @@ if __name__ == '__main__':
     for sentence in corpus:
         try:
             flat_structure = flat_converter(sentence)
+            print(flat_structure)
         except AssertionError:
             nonproj_count += 1
             continue
