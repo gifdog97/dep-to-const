@@ -12,6 +12,14 @@ logger.propagate = False
 
 from const import source_path_mapping
 
+import argparse
+parser = argparse.ArgumentParser()
+
+parser.add_argument('--ud_dir', default='../../../resource/ud-treebanks-v2.7')
+parser.add_argument('--language', default='English')
+parser.add_argument('--convert_method', default='flat')
+parser.add_argument('--output_source_dir', default='../../../resource/ud-converted')
+
 def find_multiword(sentence):
     for token in sentence:
         if token.is_multiword():
@@ -51,7 +59,10 @@ def extract_constituency(sentence, token) -> list:
     constituency = f'({token.upos}P '
     for child_id in children:
         if child_id == int(token.id):
-            sub_constituency = f'({token.upos} {token.form}) '
+            form = token.form
+            form = form.replace('(', '-LRB-')
+            form = form.replace(')', '-RRB-')
+            sub_constituency = f'({token.upos} {form}) '
         else:
             sub_constituency = extract_constituency(sentence, get_token_with_id(sentence, child_id))
         constituency += sub_constituency
@@ -62,30 +73,53 @@ def flat_converter(sentence: str) -> str:
     head_token = extract_head(sentence)
     return extract_constituency(sentence, head_token).rstrip()
 
+def main(args):
+    file_type_list = ['train', 'dev', 'test']
+
+    for file_type in file_type_list:
+        source_path = source_path_mapping[args.language]
+        path_to_corpus = os.path.join(args.ud_dir, source_path.format(file_type))
+        if args.convert_method == 'flat':
+            converter = flat_converter
+        """
+        elif args.convert_method == 'left':
+            converter = left_converter
+        elif args.convert_method == 'right':
+            converter = right_converter
+        """
+        output_dir = os.path.join(args.output_source_dir, source_path.split('/')[0])
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        logger.info(f'Converting {args.language} {file_type} corpus using {args.convert_method} converter.')
+        corpus = pyconll.load_from_file(path_to_corpus)
+
+        oneword_count = 0
+        nonproj_count = 0
+        inclempty_count = 0
+
+        with open(os.path.join(output_dir, f'{file_type}.txt'), 'w') as f:
+            for sentence in corpus:
+                if len(sentence) == 1:
+                    oneword_count += 1
+                    continue
+                try:
+                    phrase_structure = converter(sentence)
+                    f.write(phrase_structure)
+                    f.write('\n')
+                except AssertionError:
+                    nonproj_count += 1
+                    continue
+                except KeyError:
+                    inclempty_count += 1
+                    continue
+
+        logger.info(f'Number of sentence: {len(corpus)}')
+        logger.info(f'Number of oneword sentence: {oneword_count}')
+        logger.info(f'Number of non-projective sentence: {nonproj_count}')
+        logger.info(f'Number of sentence with empty node: {inclempty_count}')
+
+
 if __name__ == '__main__':
-    language = 'English'
-    path_to_ud = '../../../resource/ud-treebanks-v2.7'
-    path_to_corpus = os.path.join(path_to_ud, source_path_mapping[language])
-
-    logger.info(language)
-
-    corpus = pyconll.load_from_file(path_to_corpus)
-
-    nonproj_count = 0
-    inclempty_count = 0
-
-    for sentence in corpus:
-        try:
-            flat_structure = flat_converter(sentence)
-            print(flat_structure)
-        except AssertionError:
-            nonproj_count += 1
-            continue
-        except KeyError:
-            inclempty_count += 1
-            continue
-
-    logger.info(f'Number of sentence: {len(corpus)}')
-    logger.info(f'Number of non-projective sentence: {nonproj_count}')
-    logger.info(f'Number of sentence with empty node: {inclempty_count}')
-
+    args = parser.parse_args()
+    main(args)
