@@ -68,7 +68,7 @@ def flat_converter(sentence, token):
 
 
 # TODO
-# def left_converter(sentence, token) -> str:
+# def left_converter(sentence, token):
 
 
 def general_converter(converter, sentence):
@@ -113,7 +113,8 @@ def main(args):
         inclempty_count = 0
 
         with open(os.path.join(output_dir, f'{file_type}.txt'), 'w') as f:
-            with open(os.path.join(output_dir, 'test.tokens'), 'w') as g:
+            with open(os.path.join(output_dir, f'{file_type}.tokens'),
+                      'w') as g:
                 for sentence in corpus:
                     try:
                         phrase_structure = general_converter(
@@ -122,9 +123,8 @@ def main(args):
                             phrase_structure = f'({sentence[0].upos}P {phrase_structure})'
                         f.write(phrase_structure)
                         f.write('\n')
-                        if file_type == 'test':
-                            g.write(generate_tokens(sentence))
-                            g.write('\n')
+                        g.write(generate_tokens(sentence))
+                        g.write('\n')
                     except AssertionError:
                         nonproj_count += 1
                         continue
