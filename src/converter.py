@@ -19,6 +19,7 @@ parser.add_argument('--language', default='English')
 parser.add_argument('--convert_method', default='flat')
 parser.add_argument('--output_source_dir',
                     default='../../../resource/ud-converted')
+parser.add_argument('--merge_np', action='store_true')
 
 
 def get_token_with_id(sentence, token_id):
@@ -84,10 +85,18 @@ def generate_tokens(sentence):
     return plain_sentence.rstrip()
 
 
+def merge_np(phrase_structure):
+    return phrase_structure.replace('PRONP', 'NOUNP').replace(
+        'PROPNP', 'NOUNP').replace('DETP', 'NOUNP')
+
+
 def main(args):
     source_path = source_path_mapping[args.language]
+
+    merge_np_str = "merge" if merge_np else "not_merge"
     output_dir = os.path.join(args.output_source_dir,
-                              source_path.split('/')[0], args.convert_method)
+                              source_path.split('/')[0], args.convert_method,
+                              merge_np_str)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     file_type_list = ['train', 'dev', 'test']
@@ -121,6 +130,8 @@ def main(args):
                             converter, sentence)
                         if len(sentence) == 1:
                             phrase_structure = f'({sentence[0].upos}P {phrase_structure})'
+                        if args.merge_np:
+                            phrase_structure = merge_np(phrase_structure)
                         f.write(phrase_structure)
                         f.write('\n')
                         g.write(generate_tokens(sentence))
