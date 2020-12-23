@@ -85,16 +85,17 @@ def generate_tokens(sentence):
 
 
 def main(args):
-    source_path = source_path_mapping[args.language]
-    output_dir = os.path.join(args.output_source_dir,
-                              source_path.split('/')[0], args.convert_method)
+    # source_path = source_path_mapping[args.language]
+    # output_dir = os.path.join(args.output_source_dir,
+    #                           source_path.split('/')[0], args.convert_method)
+    source_path = "/Users/s.kando/research/resource/ud-corenlp-3.9.1"
+    output_dir = "/Users/s.kando/research/resource/ud-corenlp-3.9.1/flat"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     file_type_list = ['train', 'dev', 'test']
 
     for file_type in file_type_list:
-        path_to_corpus = os.path.join(args.ud_dir,
-                                      source_path.format(file_type))
+        path_to_corpus = os.path.join(source_path, f'{file_type}.conll')
         if args.convert_method == 'flat':
             converter = flat_converter
         """
