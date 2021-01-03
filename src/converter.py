@@ -1,5 +1,4 @@
 import argparse
-from const import source_path_mapping
 import os
 import pyconll
 from pyconll.util import find_nonprojective_deps
@@ -12,6 +11,18 @@ logger.setLevel(DEBUG)
 logger.addHandler(handler)
 logger.propagate = False
 
+source_path_mapping = {
+    'English': 'UD_English-EWT/en_ewt-ud-{}.conllu',
+    'English_GUM': 'UD_English-GUM/en_gum-ud-{}.conllu',
+    'Japanese': 'UD_Japanese-GSD/ja_gsd-ud-{}.conllu',
+    'Arabic': 'UD_Arabic-PADT/ar_padt-ud-{}.conllu',
+    'Chinese': 'UD_Chinese-GSD/zh_gsd-ud-{}.conllu',
+    'Czech': 'UD_Czech-PDT/cs_pdt-ud-{}.conllu',
+    'Russian': 'UD_Russian-GSD/ru_gsd-ud-{}.conllu',
+    'Spanish': 'UD_Spanish-GSD/es_gsd-ud-{}.conllu',
+    'German_HDT': 'UD_German-HDT/de_hdt-ud-{}.conllu'
+}
+
 parser = argparse.ArgumentParser()
 
 parser.add_argument('--ud_dir', default='../../../resource/ud-treebanks-v2.7')
@@ -19,6 +30,7 @@ parser.add_argument('--language', default='English')
 parser.add_argument('--convert_method', default='flat')
 parser.add_argument('--output_source_dir',
                     default='../../../resource/ud-converted')
+parser.add_argument('--use_dep_label', action='store_true')
 parser.add_argument('--merge_np', action='store_true')
 
 
@@ -40,6 +52,16 @@ def extract_children(sentence, parent_token):
         if token.head == parent_token.id:
             child_list.append(int(token.id))
     return sorted(child_list)
+
+
+def extract_left_children(sentence, parent_token):
+    child_list = extract_children(sentence, parent_token)
+    return list(filter(lambda c_id: c_id < int(parent_token.id), child_list))
+
+
+def extract_right_children(sentence, parent_token):
+    child_list = extract_children(sentence, parent_token)
+    return list(filter(lambda c_id: c_id > int(parent_token.id), child_list))
 
 
 # convert all the parens into -LRB- or -RRB- to resolve ambiguity of phrase structure.
@@ -68,7 +90,7 @@ def flat_converter(sentence, token):
     return constituency.rstrip() + ') '
 
 
-# TODO
+# def make_constituent_from_left():
 # def left_converter(sentence, token):
 
 
@@ -93,7 +115,7 @@ def merge_np(phrase_structure):
 def main(args):
     source_path = source_path_mapping[args.language]
 
-    merge_np_str = "merge" if merge_np else "not_merge"
+    merge_np_str = "merge" if args.merge_np else "not_merge"
     output_dir = os.path.join(args.output_source_dir,
                               source_path.split('/')[0], args.convert_method,
                               merge_np_str)
