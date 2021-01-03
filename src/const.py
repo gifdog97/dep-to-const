@@ -6,5 +6,6 @@ source_path_mapping = {
     'Chinese': 'UD_Chinese-GSD/zh_gsd-ud-{}.conllu',
     'Czech': 'UD_Czech-PDT/cs_pdt-ud-{}.conllu',
     'Russian': 'UD_Russian-GSD/ru_gsd-ud-{}.conllu',
-    'Spanish': 'UD_Spanish-GSD/es_gsd-ud-{}.conllu'
+    'Spanish': 'UD_Spanish-GSD/es_gsd-ud-{}.conllu',
+    'German_HDT': 'UD_German-HDT/de_hdt-ud-{}.conllu'
 }
