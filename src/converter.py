@@ -2,6 +2,7 @@ import argparse
 import os
 import pyconll
 from pyconll.util import find_nonprojective_deps
+from nltk.tree import *
 
 from logging import getLogger, StreamHandler, DEBUG
 logger = getLogger(__name__)
@@ -72,11 +73,15 @@ def create_leaf(token):
     return f'({token.upos} {form}) '
 
 
+def get_nt(token):
+    return f'{token.upos}P'
+
+
 def flat_converter(sentence, token):
     children = extract_children(sentence, token)
     if len(children) == 1:
         return create_leaf(token)
-    constituency = f'({token.upos}P '
+    constituency = f'({get_nt(token)} '
     for child_id in children:
         if child_id == int(token.id):
             form = token.form
@@ -90,8 +95,67 @@ def flat_converter(sentence, token):
     return constituency.rstrip() + ') '
 
 
-# def make_constituent_from_left():
-# def left_converter(sentence, token):
+def make_phrase_from_left(sentence, token, left_children_ids,
+                          right_children_ids):
+    if left_children_ids == []:
+        if right_children_ids == []:
+            return Tree(get_nt(token), [token.form])
+        else:
+            r_token = get_token_with_id(sentence, right_children_ids.pop(-1))
+            return Tree(get_nt(token), [
+                make_phrase_from_left(sentence, token, left_children_ids,
+                                      right_children_ids),
+                make_phrase_from_left(
+                    sentence, r_token, extract_left_children(
+                        sentence, r_token),
+                    extract_right_children(sentence, r_token))
+            ])
+
+    l_token = get_token_with_id(sentence, left_children_ids.pop(0))
+    return Tree(get_nt(token), [
+        make_phrase_from_left(sentence, l_token,
+                              extract_left_children(sentence, l_token),
+                              extract_right_children(sentence, l_token)),
+        make_phrase_from_left(sentence, token, left_children_ids,
+                              right_children_ids)
+    ])
+
+
+def make_phrase_from_right(sentence, token, left_children_ids,
+                           right_children_ids):
+    if right_children_ids == []:
+        if left_children_ids == []:
+            return Tree(get_nt(token), [token.form])
+        else:
+            l_token = get_token_with_id(sentence, left_children_ids.pop(0))
+            return Tree(get_nt(token), [
+                make_phrase_from_right(
+                    sentence, l_token, extract_left_children(
+                        sentence, l_token),
+                    extract_right_children(sentence, l_token)),
+                make_phrase_from_right(sentence, token, left_children_ids,
+                                       right_children_ids),
+            ])
+    r_token = get_token_with_id(sentence, right_children_ids.pop(-1))
+    return Tree(get_nt(token), [
+        make_phrase_from_right(sentence, token, left_children_ids,
+                               right_children_ids),
+        make_phrase_from_right(sentence, r_token,
+                               extract_left_children(sentence, r_token),
+                               extract_right_children(sentence, r_token))
+    ])
+
+
+def left_converter(sentence, head_token):
+    return make_phrase_from_left(
+        sentence, head_token, extract_left_children(sentence, head_token),
+        extract_right_children(sentence, head_token)).pformat(margin=1e100)
+
+
+def right_converter(sentence, head_token):
+    return make_phrase_from_right(
+        sentence, head_token, extract_left_children(sentence, head_token),
+        extract_right_children(sentence, head_token)).pformat(margin=1e100)
 
 
 def general_converter(converter, sentence):

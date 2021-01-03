@@ -24,3 +24,20 @@ def test_extract_left_children():
 
 def test_extract_right_children():
     assert extract_right_children(sentence, sentence[1]) == [4, 7]
+
+
+def test_flat_converter():
+    assert flat_converter(sentence, sentence[1]).rstrip(
+    ) == "(VERBP (PRON I) (VERB heard) (NOUNP (DET a) (NOUN noise) (NOUNP (ADP like) (NOUN paper))) (PUNCT .))"
+
+
+def test_left_converter():
+    assert left_converter(
+        sentence, sentence[1]
+    ) == "(VERBP (PRONP I) (VERBP (VERBP (VERBP heard) (NOUNP (DETP a) (NOUNP (NOUNP noise) (NOUNP (ADPP like) (NOUNP paper))))) (PUNCTP .)))"
+
+
+def test_right_converter():
+    assert right_converter(
+        sentence, sentence[1]
+    ) == "(VERBP (VERBP (VERBP (PRONP I) (VERBP heard)) (NOUNP (NOUNP (DETP a) (NOUNP noise)) (NOUNP (ADPP like) (NOUNP paper)))) (PUNCTP .))"
