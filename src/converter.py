@@ -66,10 +66,12 @@ def extract_right_children(sentence, parent_token):
 
 
 # convert all the parens into -LRB- or -RRB- to resolve ambiguity of phrase structure.
+def convert_parens(form):
+    return form.replace('(', '-LRB-').replace(')', '-RRB-')
+
+
 def create_leaf(token):
-    form = token.form
-    form = form.replace('(', '-LRB-')
-    form = form.replace(')', '-RRB-')
+    form = convert_parens(token.form)
     return f'({token.upos} {form}) '
 
 
@@ -84,9 +86,7 @@ def flat_converter(sentence, token):
     constituency = f'({get_nt(token)} '
     for child_id in children:
         if child_id == int(token.id):
-            form = token.form
-            form = form.replace('(', '-LRB-')
-            form = form.replace(')', '-RRB-')
+            form = convert_parens(token.form)
             sub_constituency = f'({token.upos} {form}) '
         else:
             sub_constituency = flat_converter(
@@ -99,7 +99,7 @@ def make_phrase_from_left(sentence, token, left_children_ids,
                           right_children_ids):
     if left_children_ids == []:
         if right_children_ids == []:
-            return Tree(get_nt(token), [token.form])
+            return Tree(get_nt(token), [convert_parens(token.form)])
         else:
             r_token = get_token_with_id(sentence, right_children_ids.pop(-1))
             return Tree(get_nt(token), [
@@ -125,7 +125,7 @@ def make_phrase_from_right(sentence, token, left_children_ids,
                            right_children_ids):
     if right_children_ids == []:
         if left_children_ids == []:
-            return Tree(get_nt(token), [token.form])
+            return Tree(get_nt(token), [convert_parens(token.form)])
         else:
             l_token = get_token_with_id(sentence, left_children_ids.pop(0))
             return Tree(get_nt(token), [
@@ -192,12 +192,10 @@ def main(args):
                                       source_path.format(file_type))
         if args.convert_method == 'flat':
             converter = flat_converter
-        """
         elif args.convert_method == 'left':
             converter = left_converter
         elif args.convert_method == 'right':
             converter = right_converter
-        """
 
         logger.info(
             f'Converting {args.language} {file_type} corpus using {args.convert_method} converter.'
