@@ -13,7 +13,7 @@ logger.addHandler(handler)
 logger.propagate = False
 
 source_path_mapping = {
-    'English': 'UD_English-EWT/en_ewt-ud-{}.conllu',
+    'English_EWT': 'UD_English-EWT/en_ewt-ud-{}.conllu',
     'English_GUM': 'UD_English-GUM/en_gum-ud-{}.conllu',
     'Japanese': 'UD_Japanese-GSD/ja_gsd-ud-{}.conllu',
     'Arabic': 'UD_Arabic-PADT/ar_padt-ud-{}.conllu',
@@ -26,13 +26,20 @@ source_path_mapping = {
 
 parser = argparse.ArgumentParser()
 
+# directory parameters
 parser.add_argument('--ud_dir', default='../../../resource/ud-treebanks-v2.7')
-parser.add_argument('--language', default='English')
-parser.add_argument('--convert_method', default='flat')
 parser.add_argument('--output_source_dir',
                     default='../../../resource/ud-converted')
+
+# data to perform conversion
+parser.add_argument('--language', default='English_EWT')
+
+# method specification parameters
+parser.add_argument('--convert_method', default='flat')
+parser.add_argument('--without_label', action='store_true')
+parser.add_argument('--use_pos_label', action='store_true')
+parser.add_argument('--use_merged_pos_label', action='store_true')
 parser.add_argument('--use_dep_label', action='store_true')
-parser.add_argument('--merge_np', action='store_true')
 
 
 def get_token_with_id(sentence, token_id):
@@ -70,27 +77,40 @@ def convert_parens(form):
     return form.replace('(', '-LRB-').replace(')', '-RRB-')
 
 
-def create_leaf(token):
-    form = convert_parens(token.form)
-    return f'({token.upos} {form}) '
+def create_leaf(form, nt):
+    form = convert_parens(form)
+    return f'({nt} {form}) '
 
 
-def get_nt(token):
+def get_X_nt(token):
+    return 'X'
+
+
+def get_pos_nt(token):
     return f'{token.upos}P'
 
 
-def flat_converter(sentence, token):
+def get_merge_pos_nt(token):
+    return get_pos_nt(token).replace('PRONP', 'NOUNP').replace(
+        'PROPNP', 'NOUNP').replace('DETP', 'NOUNP')
+
+
+def get_dep_nt(token):
+    return f'{token.deprel}'
+
+
+def flat_converter(sentence, token, get_nt):
     children = extract_children(sentence, token)
     if len(children) == 1:
-        return create_leaf(token)
+        return create_leaf(token.form, get_nt(token))
     constituency = f'({get_nt(token)} '
     for child_id in children:
         if child_id == int(token.id):
             form = convert_parens(token.form)
-            sub_constituency = f'({token.upos} {form}) '
+            sub_constituency = f'({get_nt(token)} {form}) '
         else:
             sub_constituency = flat_converter(
-                sentence, get_token_with_id(sentence, child_id))
+                sentence, get_token_with_id(sentence, child_id), get_nt)
         constituency += sub_constituency
     return constituency.rstrip() + ') '
 
@@ -158,10 +178,10 @@ def right_converter(sentence, head_token):
         extract_right_children(sentence, head_token)).pformat(margin=1e100)
 
 
-def general_converter(converter, sentence):
+def general_converter(converter, sentence, get_nt):
     assert find_nonprojective_deps(sentence) == []
     head_token = extract_head(sentence)
-    return converter(sentence, head_token).rstrip()
+    return converter(sentence, head_token, get_nt).rstrip()
 
 
 def generate_tokens(sentence):
@@ -171,34 +191,59 @@ def generate_tokens(sentence):
     return plain_sentence.rstrip()
 
 
-def merge_np(phrase_structure):
-    return phrase_structure.replace('PRONP', 'NOUNP').replace(
-        'PROPNP', 'NOUNP').replace('DETP', 'NOUNP')
+def setup_functions(args):
+    if args.convert_method == 'flat':
+        converter = flat_converter
+    """
+    elif args.convert_method == 'left':
+        converter = left_converter
+    elif args.convert_method == 'right':
+        converter = right_converter
+    """
+
+    if args.without_label:
+        get_nt = get_X_nt
+    elif args.use_pos_label:
+        get_nt = get_pos_nt
+    elif args.use_merged_pos_label:
+        get_nt = get_merge_pos_nt
+    elif args.use_dep_label:
+        get_nt = get_dep_nt
+
+    return converter, get_nt
+
+
+def get_method_str(args):
+    convert_method_str = args.convert_method
+    if args.without_label:
+        label_method_str = 'X'
+    elif args.use_pos_label:
+        label_method_str = 'POS'
+    elif args.use_merged_pos_label:
+        label_method_str = 'M_POS'
+    elif args.use_dep_label:
+        label_method_str = 'DEP'
+    return f'{convert_method_str}-{label_method_str}'
 
 
 def main(args):
     source_path = source_path_mapping[args.language]
+    method_str = get_method_str(args)
 
-    merge_np_str = "merge" if args.merge_np else "not_merge"
     output_dir = os.path.join(args.output_source_dir,
-                              source_path.split('/')[0], args.convert_method,
-                              merge_np_str)
+                              source_path.split('/')[0], method_str)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     file_type_list = ['train', 'dev', 'test']
 
+    converter, get_nt = setup_functions(args)
+
     for file_type in file_type_list:
         path_to_corpus = os.path.join(args.ud_dir,
                                       source_path.format(file_type))
-        if args.convert_method == 'flat':
-            converter = flat_converter
-        elif args.convert_method == 'left':
-            converter = left_converter
-        elif args.convert_method == 'right':
-            converter = right_converter
 
         logger.info(
-            f'Converting {args.language} {file_type} corpus using {args.convert_method} converter.'
+            f'Converting {args.language} {file_type} corpus with {method_str} method.'
         )
         corpus = pyconll.load_from_file(path_to_corpus)
 
@@ -213,9 +258,7 @@ def main(args):
                         phrase_structure = general_converter(
                             converter, sentence)
                         if len(sentence) == 1:
-                            phrase_structure = f'({sentence[0].upos}P {phrase_structure})'
-                        if args.merge_np:
-                            phrase_structure = merge_np(phrase_structure)
+                            phrase_structure = f'({get_nt(sentence[0])} {phrase_structure})'
                         f.write(phrase_structure)
                         f.write('\n')
                         g.write(generate_tokens(sentence))

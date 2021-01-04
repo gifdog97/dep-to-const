@@ -26,11 +26,27 @@ def test_extract_right_children():
     assert extract_right_children(sentence, sentence[1]) == [4, 7]
 
 
-def test_flat_converter():
-    assert flat_converter(sentence, sentence[1]).rstrip(
-    ) == "(VERBP (PRON I) (VERB heard) (NOUNP (DET a) (NOUN noise) (NOUNP (ADP like) (NOUN paper))) (PUNCT .))"
+def test_flat_X_converter():
+    assert flat_converter(sentence, sentence[1], get_X_nt).rstrip(
+    ) == "(X (X I) (X heard) (X (X a) (X noise) (X (X like) (X paper))) (X .))"
 
 
+def test_flat_pos_converter():
+    assert flat_converter(sentence, sentence[1], get_pos_nt).rstrip(
+    ) == "(VERBP (PRONP I) (VERBP heard) (NOUNP (DETP a) (NOUNP noise) (NOUNP (ADPP like) (NOUNP paper))) (PUNCTP .))"
+
+
+def test_flat_merge_pos_converter():
+    assert flat_converter(sentence, sentence[1], get_merge_pos_nt).rstrip(
+    ) == "(VERBP (NOUNP I) (VERBP heard) (NOUNP (NOUNP a) (NOUNP noise) (NOUNP (ADPP like) (NOUNP paper))) (PUNCTP .))"
+
+
+def test_flat_dep_converter():
+    assert flat_converter(sentence, sentence[1], get_dep_nt).rstrip(
+    ) == "(root (nsubj I) (root heard) (obj (det a) (obj noise) (nmod (case like) (nmod paper))) (punct .))"
+
+
+"""
 def test_left_converter():
     assert left_converter(
         sentence, sentence[1]
@@ -41,3 +57,4 @@ def test_right_converter():
     assert right_converter(
         sentence, sentence[1]
     ) == "(VERBP (VERBP (VERBP (PRONP I) (VERBP heard)) (NOUNP (NOUNP (DETP a) (NOUNP noise)) (NOUNP (ADPP like) (NOUNP paper)))) (PUNCTP .))"
+"""
