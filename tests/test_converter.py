@@ -46,15 +46,41 @@ def test_flat_dep_converter():
     ) == "(root (nsubj I) (root heard) (obj (det a) (obj noise) (nmod (case like) (nmod paper))) (punct .))"
 
 
-"""
-def test_left_converter():
-    assert left_converter(
-        sentence, sentence[1]
+def test_left_X_converter():
+    assert left_converter(sentence, sentence[1], get_X_nt).rstrip(
+    ) == "(X (X I) (X (X (X heard) (X (X a) (X (X noise) (X (X like) (X paper))))) (X .)))"
+
+
+def test_left_pos_converter():
+    assert left_converter(sentence, sentence[1], get_pos_nt).rstrip(
     ) == "(VERBP (PRONP I) (VERBP (VERBP (VERBP heard) (NOUNP (DETP a) (NOUNP (NOUNP noise) (NOUNP (ADPP like) (NOUNP paper))))) (PUNCTP .)))"
 
 
-def test_right_converter():
-    assert right_converter(
-        sentence, sentence[1]
+def test_left_merge_pos_converter():
+    assert left_converter(sentence, sentence[1], get_merge_pos_nt).rstrip(
+    ) == "(VERBP (NOUNP I) (VERBP (VERBP (VERBP heard) (NOUNP (NOUNP a) (NOUNP (NOUNP noise) (NOUNP (ADPP like) (NOUNP paper))))) (PUNCTP .)))"
+
+
+def test_left_dep_converter():
+    assert left_converter(sentence, sentence[1], get_dep_nt).rstrip(
+    ) == "(root (nsubj I) (root (root (root heard) (obj (det a) (obj (obj noise) (nmod (case like) (nmod paper))))) (punct .)))"
+
+
+def test_right_X_converter():
+    assert right_converter(sentence, sentence[1], get_X_nt).rstrip(
+    ) == "(X (X (X (X I) (X heard)) (X (X (X a) (X noise)) (X (X like) (X paper)))) (X .))"
+
+
+def test_right_pos_converter():
+    assert right_converter(sentence, sentence[1], get_pos_nt).rstrip(
     ) == "(VERBP (VERBP (VERBP (PRONP I) (VERBP heard)) (NOUNP (NOUNP (DETP a) (NOUNP noise)) (NOUNP (ADPP like) (NOUNP paper)))) (PUNCTP .))"
-"""
+
+
+def test_right_merge_pos_converter():
+    assert right_converter(sentence, sentence[1], get_merge_pos_nt).rstrip(
+    ) == "(VERBP (VERBP (VERBP (NOUNP I) (VERBP heard)) (NOUNP (NOUNP (NOUNP a) (NOUNP noise)) (NOUNP (ADPP like) (NOUNP paper)))) (PUNCTP .))"
+
+
+def test_right_dep_converter():
+    assert right_converter(sentence, sentence[1], get_dep_nt).rstrip(
+    ) == "(root (root (root (nsubj I) (root heard)) (obj (obj (det a) (obj noise)) (nmod (case like) (nmod paper)))) (punct .))"
