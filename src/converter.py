@@ -4,12 +4,9 @@ import pyconll
 from pyconll.util import find_nonprojective_deps
 from nltk.tree import *
 
-from logging import getLogger, StreamHandler, DEBUG
+from logging import getLogger, FileHandler, DEBUG
 logger = getLogger(__name__)
-handler = StreamHandler()
-handler.setLevel(DEBUG)
 logger.setLevel(DEBUG)
-logger.addHandler(handler)
 logger.propagate = False
 
 source_path_mapping = {
@@ -30,7 +27,7 @@ parser.add_argument('--output_source_dir',
                     default='../../../resource/ud-converted')
 
 # data to perform conversion
-parser.add_argument('--language', default='English_EWT')
+parser.add_argument('--corpus_name', default='English_EWT')
 
 # method specification parameters
 parser.add_argument('--convert_method', default='flat')
@@ -224,14 +221,16 @@ def get_method_str(args):
     return f'{convert_method_str}-{label_method_str}'
 
 
-def main(args):
-    source_path = source_path_mapping[args.language]
+def generate_path_info(args):
+    source_path = source_path_mapping[args.corpus_name]
     method_str = get_method_str(args)
+    return source_path, method_str, os.path.join(args.output_source_dir,
+                                                 source_path.split('/')[0],
+                                                 method_str)
 
-    output_dir = os.path.join(args.output_source_dir,
-                              source_path.split('/')[0], method_str)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+
+def main(args):
+    source_path, method_str, output_dir = generate_path_info(args)
     file_type_list = ['train', 'dev', 'test']
 
     converter, get_nt = setup_functions(args)
@@ -241,7 +240,7 @@ def main(args):
                                       source_path.format(file_type))
 
         logger.info(
-            f'Converting {args.language} {file_type} corpus with {method_str} method.'
+            f'Converting {args.corpus_name} {file_type} corpus with {method_str} method.'
         )
         corpus = pyconll.load_from_file(path_to_corpus)
 
@@ -275,4 +274,13 @@ def main(args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
+    source_path, method_str, output_dir = generate_path_info(args)
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    handler = FileHandler(filename=f'{output_dir}/convert.log')
+    handler.setLevel(DEBUG)
+    logger.addHandler(handler)
+
     main(args)
