@@ -67,14 +67,18 @@ def extract_right_children(sentence, parent_token):
     return list(filter(lambda c_id: c_id > int(parent_token.id), child_list))
 
 
-# convert all the parens into -LRB- or -RRB- to resolve ambiguity of phrase structure.
-def convert_parens(form):
-    return form.replace('(', '-LRB-').replace(')', '-RRB-')
+# Convert all the parens into -LRB- or -RRB- to resolve ambiguity of phrase structure.
+# Remove space in form because preprocess does not expect each forms contain any space.
+# Space is contained at least in French_GSD, but they are numeric so that not problematic.
+# Keeping a log just in case.
+def sanitize_form(form):
+    if ' ' in form:
+        logger.info(f'Space included in the form: {form}')
+    return form.replace('(', '-LRB-').replace(')', '-RRB-').replace(' ', '')
 
 
 def create_leaf(form, nt):
-    form = convert_parens(form)
-    return f'({nt} {form}) '
+    return f'({nt} {sanitize_form(form)}) '
 
 
 def get_X_nt(token):
@@ -101,8 +105,7 @@ def flat_converter(sentence, token, get_nt):
     constituency = f'({get_nt(token)} '
     for child_id in children:
         if child_id == int(token.id):
-            form = convert_parens(token.form)
-            sub_constituency = f'({get_nt(token)} {form}) '
+            sub_constituency = f'({get_nt(token)} {sanitize_form(token.form)}) '
         else:
             sub_constituency = flat_converter(
                 sentence, get_token_with_id(sentence, child_id), get_nt)
@@ -114,7 +117,7 @@ def make_phrase_from_left(sentence, token, left_children_ids,
                           right_children_ids, get_nt):
     if left_children_ids == []:
         if right_children_ids == []:
-            return Tree(get_nt(token), [convert_parens(token.form)])
+            return Tree(get_nt(token), [sanitize_form(token.form)])
         else:
             r_token = get_token_with_id(sentence, right_children_ids.pop(-1))
             return Tree(get_nt(token), [
@@ -140,7 +143,7 @@ def make_phrase_from_right(sentence, token, left_children_ids,
                            right_children_ids, get_nt):
     if right_children_ids == []:
         if left_children_ids == []:
-            return Tree(get_nt(token), [convert_parens(token.form)])
+            return Tree(get_nt(token), [sanitize_form(token.form)])
         else:
             l_token = get_token_with_id(sentence, left_children_ids.pop(0))
             return Tree(get_nt(token), [
@@ -184,7 +187,7 @@ def general_converter(converter, sentence, get_nt):
 def generate_tokens(sentence):
     plain_sentence = ""
     for token in sentence:
-        plain_sentence += token.form + ' '
+        plain_sentence += sanitize_form(token.form) + ' '
     return plain_sentence.rstrip()
 
 
