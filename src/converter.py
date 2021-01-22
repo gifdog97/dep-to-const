@@ -1,33 +1,24 @@
 import argparse
 import os
+from pathlib import Path
 import pyconll
 from pyconll.util import find_nonprojective_deps
 from nltk.tree import *
 
-from logging import getLogger, FileHandler, DEBUG
+from logging import getLogger, FileHandler, Formatter, DEBUG
+fmt = "%(asctime)s %(levelname)s %(name)s :%(message)s"
+
 logger = getLogger(__name__)
 logger.setLevel(DEBUG)
 logger.propagate = False
 
-source_path_mapping = {
-    'English_EWT': 'UD_English-EWT/en_ewt-ud-{}.conllu',
-    'Japanese_GSD': 'UD_Japanese-GSD/ja_gsd-ud-{}.conllu',
-    'French_GSD': 'UD_French-GSD/fr_gsd-ud-{}.conllu',
-    'German_GSD': 'UD_German-GSD/de_gsd-ud-{}.conllu',
-    'Hebrew_HTB': 'UD_Hebrew-HTB/he_htb-ud-{}.conllu',
-    'Russian_GSD': 'UD_Russian-GSD/ru_gsd-ud-{}.conllu',
-    'ptb-to-ud': 'ptb-to-ud/{}.conllu'
-}
-
 parser = argparse.ArgumentParser()
 
 # directory parameters
-parser.add_argument('--ud_dir', default='../../../resource/ud-treebanks-v2.7')
+parser.add_argument('--source_path',
+                    default='../../../resource/ud-treebanks-v2.7/English_EWT')
 parser.add_argument('--output_source_dir',
                     default='../../../resource/ud-converted')
-
-# data to perform conversion
-parser.add_argument('--corpus_name', default='English_EWT')
 
 # method specification parameters
 parser.add_argument('--convert_method', default='flat')
@@ -224,36 +215,57 @@ def get_method_str(args):
     return f'{convert_method_str}-{label_method_str}'
 
 
+def extract_data_type(conllu_file_name):
+    if "train" in conllu_file_name:
+        return "train"
+    elif "dev" in conllu_file_name:
+        return "dev"
+    elif "test" in conllu_file_name:
+        return "test"
+    # this case (dataset is not train/dev/test) should be treated carefully
+    return "other"
+
+
+def find_conllu_files(source_path):
+    file_list = []
+    for conllu_file in Path(source_path).glob('**/*.conllu'):
+        file_info = {}
+        file_info['path'] = conllu_file
+        file_info['data_type'] = extract_data_type(conllu_file.name)
+        file_list.append(file_info)
+    return file_list
+
+
 def generate_path_info(args):
-    source_path = source_path_mapping[args.corpus_name]
+    files_to_convert = find_conllu_files(args.source_path)
     method_str = get_method_str(args)
-    return source_path, method_str, os.path.join(args.output_source_dir,
-                                                 source_path.split('/')[0],
-                                                 method_str)
+    return files_to_convert, method_str, os.path.join(
+        args.output_source_dir,
+        Path(args.source_path).name, method_str)
 
 
 def main(args):
-    source_path, method_str, output_dir = generate_path_info(args)
-    file_type_list = ['train', 'dev', 'test']
+    conllu_files_to_convert, method_str, output_dir = generate_path_info(args)
 
     converter, get_nt = setup_functions(args)
 
-    for file_type in file_type_list:
-        path_to_corpus = os.path.join(args.ud_dir,
-                                      source_path.format(file_type))
-
+    for conllu_file in conllu_files_to_convert:
         logger.info(
-            f'Converting {args.corpus_name} {file_type} corpus with {method_str} method.'
-        )
-        corpus = pyconll.load_from_file(path_to_corpus)
+            f'Converting {conllu_file["path"].name} with {method_str} method.')
+        corpus = pyconll.load_from_file(str(conllu_file["path"]))
 
         nonproj_count = 0
         inclempty_count = 0
 
-        with open(os.path.join(output_dir, f'{file_type}.txt'), 'w') as f:
-            with open(os.path.join(output_dir, f'{file_type}.tokens'),
-                      'w') as g:
-                for sentence in corpus:
+        with open(os.path.join(output_dir, f'{conllu_file["data_type"]}.txt'),
+                  'w') as f:
+            with open(
+                    os.path.join(output_dir,
+                                 f'{conllu_file["data_type"]}.tokens'),
+                    'w') as g:
+                for i, sentence in enumerate(corpus):
+                    if i % 10000 == 0:
+                        logger.info(f'{i} data has been converted.')
                     try:
                         phrase_structure = general_converter(
                             converter, sentence, get_nt)
@@ -284,6 +296,7 @@ if __name__ == '__main__':
 
     handler = FileHandler(filename=f'{output_dir}/convert.log')
     handler.setLevel(DEBUG)
+    handler.setFormatter(Formatter(fmt))
     logger.addHandler(handler)
 
     main(args)
