@@ -19,9 +19,10 @@ python converter.py
   --convert_method <flat/left/right>
 ```
 
-Source_path should include either train/dev/test set. The converted treebank is named according to the original name.
+If source_path includes the treebank named train/dev/test set, the converted treebank is named according to the original name such as `train.txt`.
+In addition to converted treebank, the program outputs raw text separated by space, which is named such as `train.tokens`.
 
-In addition to above, you need to set the labeling policy (described later).
+Besides above, you need to set the labeling policy (described later).
 Currently we have four types of labeling policies and you need to choose one from them:
 
 ```
@@ -52,14 +53,14 @@ The details of algorithm is described in [Collins et al, 1999](https://www.aclwe
 In short, flat method converts dependency structure into "flat" constituency structure.
 It converts dependents into children in the constituency structure at the same time.
 
-Left/right methods does not convert at the same time. Instead, they merge head and dependeny one by one, in left-first or right-first way.
+Left/right methods does not convert at the same time. Instead, they merge head and dependent one by one, in left-first or right-first way.
 These methods produce complete binary tree.
-As the algorithm suggests, constituency tree converted by left-first method tends to be right-branching (and vice verca for right-first method).
+As the algorithm suggests, constituency tree converted by left-first method tends to be right-branching (and vice versa for right-first method).
 
 ### Labeling policy
-We set following four types of nonterminals attatched to resulting constituency tree:
+We set following four types of nonterminals attached to resulting constituency tree:
 
 - Without label: All the nonterminals are set 'X'
 - POS label: Using part-of-speech tag of the head token.
 - Merged-POS label: Basically using POS label, and convert DETP/PROPNP/PRONP into NOUNP.
-- DEP label: Using dependency lagel of the head token.
+- DEP label: Using dependency label of the head token.
