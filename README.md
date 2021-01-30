@@ -1,11 +1,11 @@
 # Dep-to-Const Converter
 
 This repository provides the converter from dependency structure to phrase structure.
-The converter works completely algorithmic and does not need any training.
+The converter works completely algorithmically and does not need any training.
 
 ## Usage
 ### Requirement
-`pip install pyconll nktk`
+`pip install pyconll nltk`
 
 For test, you additionally need to install `pytest`.
 
