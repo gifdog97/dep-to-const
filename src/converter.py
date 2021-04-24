@@ -4,6 +4,7 @@ from pathlib import Path
 import pyconll
 from pyconll.util import find_nonprojective_deps
 from nltk.tree import *
+import unicodedata
 
 from logging import getLogger, FileHandler, Formatter, DEBUG
 fmt = "%(asctime)s %(levelname)s %(name)s :%(message)s"
@@ -26,6 +27,26 @@ parser.add_argument('--without_label', action='store_true')
 parser.add_argument('--use_pos_label', action='store_true')
 parser.add_argument('--use_merged_pos_label', action='store_true')
 parser.add_argument('--use_dep_label', action='store_true')
+
+class NonProjError(Exception):
+    pass
+
+class CFContainedError(Exception):
+    pass
+
+def Cf_included(s):
+    for c in s:
+        if unicodedata.category(c) == "Cf":
+            return True
+    return False
+
+
+def sentence_to_str(sentence):
+    s = "" 
+    for token in sentence:
+        s += token.form
+        s += " "
+    return s.rstrip()
 
 
 def get_token_with_id(sentence, token_id):
@@ -59,10 +80,13 @@ def extract_right_children(sentence, parent_token):
 
 
 # Convert all the parens into -LRB- or -RRB- to resolve ambiguity of phrase structure.
-# Remove space in form because preprocess does not expect each forms contain any space.
+# Remove sentence including control character because preprocess.py does not expect that.
+# Remove space in form because preprocess.py does not expect each forms contain any space.
 # Space is contained at least in French_GSD, but they are numeric so that not problematic.
 # Keeping a log just in case.
 def sanitize_form(form):
+    if Cf_included(form):
+        raise CFContainedError
     if ' ' in form:
         logger.info(f'Space included in the form: {form}')
     return form.replace('(', '-LRB-').replace(')', '-RRB-').replace('（', '-LRB-').replace('）', '-RRB-').replace(' ', '')
@@ -170,7 +194,8 @@ def right_converter(sentence, head_token, get_nt):
 
 
 def general_converter(converter, sentence, get_nt):
-    assert find_nonprojective_deps(sentence) == []
+    if len(find_nonprojective_deps(sentence)) != 0:
+        raise NonProjError
     head_token = extract_head(sentence)
     return converter(sentence, head_token, get_nt).rstrip()
 
@@ -254,8 +279,9 @@ def main(args):
             f'Converting {conllu_file["path"].name} with {method_str} method.')
         corpus = pyconll.load_from_file(str(conllu_file["path"]))
 
-        nonproj_count = 0
         inclempty_count = 0
+        nonproj_count = 0
+        cfcontained_count = 0
 
         with open(os.path.join(output_dir, f'{conllu_file["data_type"]}.txt'),
                   'w') as f:
@@ -275,16 +301,21 @@ def main(args):
                         f.write('\n')
                         g.write(generate_tokens(sentence))
                         g.write('\n')
-                    except AssertionError:
-                        nonproj_count += 1
-                        continue
                     except KeyError:
                         inclempty_count += 1
+                        continue
+                    except NonProjError:
+                        nonproj_count += 1
+                        continue
+                    except CFContainedError:
+                        logger.info(f'Cf contained in {sentence_to_str(sentence)}')
+                        cfcontained_count += 1
                         continue
 
         logger.info(f'Number of sentence: {len(corpus)}')
         logger.info(f'Number of non-projective sentence: {nonproj_count}')
         logger.info(f'Number of sentence with empty node: {inclempty_count}')
+        logger.info(f'Number of sentence with control character: {cfcontained_count}')
 
 
 if __name__ == '__main__':
