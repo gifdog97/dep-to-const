@@ -65,7 +65,7 @@ def extract_right_children(sentence, parent_token):
 def sanitize_form(form):
     if ' ' in form:
         logger.info(f'Space included in the form: {form}')
-    return form.replace('(', '-LRB-').replace(')', '-RRB-').replace(' ', '')
+    return form.replace('(', '-LRB-').replace(')', '-RRB-').replace('（', '-LRB-').replace('）', '-RRB-').replace(' ', '')
 
 
 def create_leaf(form, nt):
