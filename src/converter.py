@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser()
 # directory parameters
 parser.add_argument('--source_path',
                     default='../../../resource/ud-treebanks-v2.7/English_EWT')
-parser.add_argument('--output_source_dir',
+parser.add_argument('--output_path',
                     default='../../../resource/ud-converted')
 
 # method specification parameters
@@ -28,13 +28,21 @@ parser.add_argument('--use_pos_label', action='store_true')
 parser.add_argument('--use_merged_pos_label', action='store_true')
 parser.add_argument('--use_dep_label', action='store_true')
 
+# other parameter(s)
+parser.add_argument('--sentence_num', default=5000)
+
 class NonProjError(Exception):
     pass
 
 class CFContainedError(Exception):
     pass
 
+class ContainNoneError(Exception):
+    pass
+
 def Cf_included(s):
+    if s is None:
+        raise ContainNoneError
     for c in s:
         if unicodedata.category(c) == "Cf":
             return True
@@ -264,9 +272,7 @@ def find_conllu_files(source_path):
 def generate_path_info(args):
     files_to_convert = find_conllu_files(args.source_path)
     method_str = get_method_str(args)
-    return files_to_convert, method_str, os.path.join(
-        args.output_source_dir,
-        Path(args.source_path).name, method_str)
+    return files_to_convert, method_str, os.path.join(args.output_path, method_str)
 
 
 def main(args):
@@ -278,10 +284,13 @@ def main(args):
         logger.info(
             f'Converting {conllu_file["path"].name} with {method_str} method.')
         corpus = pyconll.load_from_file(str(conllu_file["path"]))
+        
+        processed_sentence_num = 0
 
         inclempty_count = 0
-        nonproj_count = 0
         cfcontained_count = 0
+        contain_none_count = 0
+        nonproj_count = 0
 
         with open(os.path.join(output_dir, f'{conllu_file["data_type"]}.txt'),
                   'w') as f:
@@ -301,8 +310,15 @@ def main(args):
                         f.write('\n')
                         g.write(generate_tokens(sentence))
                         g.write('\n')
+                        processed_sentence_num += 1
+                        # extract 5000 sentence for dev/test set
+                        if conllu_file["data_type"] != "train" and processed_sentence_num == args.sentence_num:
+                            break
                     except KeyError:
                         inclempty_count += 1
+                        continue
+                    except ContainNoneError:
+                        contain_none_count += 1
                         continue
                     except NonProjError:
                         nonproj_count += 1
@@ -314,6 +330,7 @@ def main(args):
 
         logger.info(f'Number of sentence: {len(corpus)}')
         logger.info(f'Number of non-projective sentence: {nonproj_count}')
+        logger.info(f'Number of sentence with None: {contain_none_count}')
         logger.info(f'Number of sentence with empty node: {inclempty_count}')
         logger.info(f'Number of sentence with control character: {cfcontained_count}')
 
