@@ -11,7 +11,28 @@ SAMPLE_CONLLU = """
 7	.	.	PUNCT	.	_	2	punct	_	_
 """
 
+ROOT_NONPROJ = """
+1	That	that	PRON	_	Number=Sing|PronType=Dem	3	nsubj	_	_
+2	is	be	AUX	_	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	3	cop	_	_
+3	why	why	ADV	_	PronType=Int	8	advmod	_	_
+4	the	the	DET	_	Definite=Def|PronType=Art	5	det	_	_
+5	crucifixes	crucifixe	NOUN	_	Number=Plur	8	nsubj:pass	_	_
+6	must	must	AUX	_	VerbForm=Fin	8	aux	_	_
+7	be	be	AUX	_	VerbForm=Inf	8	aux:pass	_	_
+8	replaced	replace	VERB	_	Tense=Past|VerbForm=Part|Voice=Pass	0	root	_	_
+9	by	by	ADP	_	_	11	case	_	_
+10	the	the	DET	_	Definite=Def|PronType=Art	11	det	_	_
+11	image	image	NOUN	_	Number=Sing	8	obl	_	_
+12	of	of	ADP	_	_	14	case	_	_
+13	our	we	PRON	_	Number=Plur|Person=1|Poss=Yes|PronType=Prs	14	nmod:poss	_	_
+14	Messiah	Messiah	PROPN	_	Number=Sing	11	nmod	_	_
+15	.	.	PUNCT	_	_	3	punct	_	_
+16	"	"	PUNCT	_	_	3	punct	_	_
+"""
+
 sentence = pyconll.load.load_from_string(SAMPLE_CONLLU)[0]
+
+nonproj_sentence = pyconll.load.load_from_string(ROOT_NONPROJ)[0]
 
 
 def test_extract_children():
@@ -84,3 +105,6 @@ def test_right_merge_pos_converter():
 def test_right_dep_converter():
     assert right_converter(sentence, sentence[1], get_dep_nt).rstrip(
     ) == "(root (root (root (nsubj I) (root heard)) (obj (obj (det a) (obj noise)) (nmod (case like) (nmod paper)))) (punct .))"
+
+def test_rootcross_included():
+    assert not rootcross_included(sentence) and rootcross_included(nonproj_sentence)

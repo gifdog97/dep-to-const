@@ -29,9 +29,13 @@ parser.add_argument('--use_merged_pos_label', action='store_true')
 parser.add_argument('--use_dep_label', action='store_true')
 
 # other parameter(s)
-parser.add_argument('--sentence_num', default=5000)
+parser.add_argument('--dev_test_sentence_num', default=5000)
+parser.add_argument('--train_token_num', default=40000000)
 
 class NonProjError(Exception):
+    pass
+
+class RootNonProjError(Exception):
     pass
 
 class CFContainedError(Exception):
@@ -39,6 +43,19 @@ class CFContainedError(Exception):
 
 class ContainNoneError(Exception):
     pass
+
+
+def rootcross_included(sentence):
+    root_id = int(extract_head(sentence).id)
+    def is_crossing_root(token_id, head_id):
+        return (token_id < root_id and root_id < head_id) or (token_id > root_id and root_id > head_id)
+
+    for token in sentence:
+        head_id = token.head
+        if is_crossing_root(int(token.id), int(head_id)):
+            return True
+
+    return False
 
 def Cf_included(s):
     if s is None:
@@ -204,6 +221,8 @@ def right_converter(sentence, head_token, get_nt):
 def general_converter(converter, sentence, get_nt):
     if len(find_nonprojective_deps(sentence)) != 0:
         raise NonProjError
+    if rootcross_included(sentence):
+        raise RootNonProjError
     head_token = extract_head(sentence)
     return converter(sentence, head_token, get_nt).rstrip()
 
@@ -286,11 +305,13 @@ def main(args):
         corpus = pyconll.load_from_file(str(conllu_file["path"]))
         
         processed_sentence_num = 0
+        token_num = 0
 
         inclempty_count = 0
         cfcontained_count = 0
         contain_none_count = 0
         nonproj_count = 0
+        root_nonproj_count = 0
 
         with open(os.path.join(output_dir, f'{conllu_file["data_type"]}.txt'),
                   'w') as f:
@@ -311,8 +332,11 @@ def main(args):
                         g.write(generate_tokens(sentence))
                         g.write('\n')
                         processed_sentence_num += 1
+                        token_num += len(sentence)
                         # extract 5000 sentence for dev/test set
-                        if conllu_file["data_type"] != "train" and processed_sentence_num == args.sentence_num:
+                        if conllu_file["data_type"] != "train" and processed_sentence_num == args.dev_test_sentence_num:
+                            break
+                        if conllu_file["data_type"] == "train" and token_num == args.train_token_num:
                             break
                     except KeyError:
                         inclempty_count += 1
@@ -323,13 +347,20 @@ def main(args):
                     except NonProjError:
                         nonproj_count += 1
                         continue
+                    except RootNonProjError:
+                        root_nonproj_count += 1
+                        continue
                     except CFContainedError:
                         logger.info(f'Cf contained in {sentence_to_str(sentence)}')
                         cfcontained_count += 1
                         continue
 
         logger.info(f'Number of sentence: {len(corpus)}')
+        logger.info(f'Number of tokens: {token_num}')
+        logger.info(f'converted: {processed_sentence_num}')
+
         logger.info(f'Number of non-projective sentence: {nonproj_count}')
+        logger.info(f'Number of root-non-projective sentence: {root_nonproj_count}')
         logger.info(f'Number of sentence with None: {contain_none_count}')
         logger.info(f'Number of sentence with empty node: {inclempty_count}')
         logger.info(f'Number of sentence with control character: {cfcontained_count}')
