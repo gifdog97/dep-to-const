@@ -16,10 +16,8 @@ logger.propagate = False
 parser = argparse.ArgumentParser()
 
 # directory parameters
-parser.add_argument('--source_path',
-                    default='../../../resource/ud-treebanks-v2.7/English_EWT')
-parser.add_argument('--output_path',
-                    default='../../../resource/ud-converted')
+parser.add_argument('--source_path', default='path/to/source')
+parser.add_argument('--output_path', default='path/to/output')
 
 # method specification parameters
 parser.add_argument('--convert_method', default='flat')
@@ -30,25 +28,34 @@ parser.add_argument('--use_dep_label', action='store_true')
 
 # other parameter(s)
 parser.add_argument('--dev_test_sentence_num', default=5000)
-parser.add_argument('--train_token_num', default=40000000)
+parser.add_argument('--train_token_num', default=10000000)
+
 
 class NonProjError(Exception):
     pass
 
+
 class RootNonProjError(Exception):
     pass
 
+
 class CFContainedError(Exception):
     pass
+
 
 class ContainNoneError(Exception):
     pass
 
 
+# Since pyconll package sometimes fail to censor non-projective dependency tree that contains crossing above root edge,
+# function for handling this exception is defined here
 def rootcross_included(sentence):
     root_id = int(extract_head(sentence).id)
+
     def is_crossing_root(token_id, head_id):
-        return (token_id < root_id and root_id < head_id) or (token_id > root_id and root_id > head_id)
+        return (token_id < root_id
+                and root_id < head_id) or (token_id > root_id
+                                           and root_id > head_id)
 
     for token in sentence:
         head_id = token.head
@@ -56,6 +63,7 @@ def rootcross_included(sentence):
             return True
 
     return False
+
 
 def Cf_included(s):
     if s is None:
@@ -67,7 +75,7 @@ def Cf_included(s):
 
 
 def sentence_to_str(sentence):
-    s = "" 
+    s = ""
     for token in sentence:
         s += token.form
         s += " "
@@ -105,16 +113,15 @@ def extract_right_children(sentence, parent_token):
 
 
 # Convert all the parens into -LRB- or -RRB- to resolve ambiguity of phrase structure.
-# Remove sentence including control character because preprocess.py does not expect that.
-# Remove space in form because preprocess.py does not expect each forms contain any space.
-# Space is contained at least in French_GSD, but they are numeric so that not problematic.
-# Keeping a log just in case.
+# Remove sentence including control character because preprocess.py in batched-RNNG does not expect that.
+# Remove space in form because preprocess.py expect each forms do not contain any space.
 def sanitize_form(form):
     if Cf_included(form):
         raise CFContainedError
     if ' ' in form:
         logger.info(f'Space included in the form: {form}')
-    return form.replace('(', '-LRB-').replace(')', '-RRB-').replace('（', '-LRB-').replace('）', '-RRB-').replace(' ', '')
+    return form.replace('(', '-LRB-').replace(')', '-RRB-').replace(
+        '（', '-LRB-').replace('）', '-RRB-').replace(' ', '')
 
 
 def create_leaf(form, nt):
@@ -291,7 +298,8 @@ def find_conllu_files(source_path):
 def generate_path_info(args):
     files_to_convert = find_conllu_files(args.source_path)
     method_str = get_method_str(args)
-    return files_to_convert, method_str, os.path.join(args.output_path, method_str)
+    return files_to_convert, method_str, os.path.join(args.output_path,
+                                                      method_str)
 
 
 def main(args):
@@ -303,7 +311,7 @@ def main(args):
         logger.info(
             f'Converting {conllu_file["path"].name} with {method_str} method.')
         corpus = pyconll.load_from_file(str(conllu_file["path"]))
-        
+
         processed_sentence_num = 0
         token_num = 0
 
@@ -334,9 +342,11 @@ def main(args):
                         processed_sentence_num += 1
                         token_num += len(sentence)
                         # extract 5000 sentence for dev/test set
-                        if conllu_file["data_type"] != "train" and processed_sentence_num == args.dev_test_sentence_num:
+                        if conllu_file[
+                                "data_type"] != "train" and processed_sentence_num == args.dev_test_sentence_num:
                             break
-                        if conllu_file["data_type"] == "train" and token_num == args.train_token_num:
+                        if conllu_file[
+                                "data_type"] == "train" and token_num == args.train_token_num:
                             break
                     except KeyError:
                         inclempty_count += 1
@@ -351,7 +361,8 @@ def main(args):
                         root_nonproj_count += 1
                         continue
                     except CFContainedError:
-                        logger.info(f'Cf contained in {sentence_to_str(sentence)}')
+                        logger.info(
+                            f'Cf contained in {sentence_to_str(sentence)}')
                         cfcontained_count += 1
                         continue
 
@@ -360,10 +371,12 @@ def main(args):
         logger.info(f'converted: {processed_sentence_num}')
 
         logger.info(f'Number of non-projective sentence: {nonproj_count}')
-        logger.info(f'Number of root-non-projective sentence: {root_nonproj_count}')
+        logger.info(
+            f'Number of root-non-projective sentence: {root_nonproj_count}')
         logger.info(f'Number of sentence with None: {contain_none_count}')
         logger.info(f'Number of sentence with empty node: {inclempty_count}')
-        logger.info(f'Number of sentence with control character: {cfcontained_count}')
+        logger.info(
+            f'Number of sentence with control character: {cfcontained_count}')
 
 
 if __name__ == '__main__':
