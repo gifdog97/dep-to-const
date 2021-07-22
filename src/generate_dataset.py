@@ -34,7 +34,7 @@ parser.add_argument('--write_deptree', action='store_true')
 def convert_conllu_files(args):
     conllu_files_to_convert, method_str, output_dir = generate_path_info(args)
     converter, get_nt = setup_functions(args)
-    original_deptree_dir = Path(os.path.join(output_dir, "original_deptree"))
+    original_deptree_dir = Path(os.path.join(args.output_path, "original_deptree"))
     if not original_deptree_dir.exists():
         original_deptree_dir.mkdir()
 
