@@ -1,36 +1,9 @@
-import argparse
 import os
 from pathlib import Path
 import pyconll
 from pyconll.util import find_nonprojective_deps
 from nltk.tree import *
 import unicodedata
-
-from logging import getLogger, FileHandler, Formatter, DEBUG
-fmt = "%(asctime)s %(levelname)s %(name)s :%(message)s"
-
-logger = getLogger(__name__)
-logger.setLevel(DEBUG)
-logger.propagate = False
-
-parser = argparse.ArgumentParser()
-
-# directory parameters
-parser.add_argument('--source_path',
-                    default='../../../resource/ud-treebanks-v2.7/English_EWT')
-parser.add_argument('--output_path',
-                    default='../../../resource/ud-converted')
-
-# method specification parameters
-parser.add_argument('--convert_method', default='flat')
-parser.add_argument('--without_label', action='store_true')
-parser.add_argument('--use_pos_label', action='store_true')
-parser.add_argument('--use_merged_pos_label', action='store_true')
-parser.add_argument('--use_dep_label', action='store_true')
-
-# other parameter(s)
-parser.add_argument('--dev_test_sentence_num', default=5000)
-parser.add_argument('--train_token_num', default=40000000)
 
 class NonProjError(Exception):
     pass
@@ -69,8 +42,9 @@ def Cf_included(s):
 def sentence_to_str(sentence):
     s = "" 
     for token in sentence:
-        s += token.form
-        s += " "
+        if token.form is not None:
+            s += token.form
+            s += " "
     return s.rstrip()
 
 
@@ -104,21 +78,24 @@ def extract_right_children(sentence, parent_token):
     return list(filter(lambda c_id: c_id > int(parent_token.id), child_list))
 
 
-# Convert all the parens into -LRB- or -RRB- to resolve ambiguity of phrase structure.
-# Remove sentence including control character because preprocess.py does not expect that.
-# Remove space in form because preprocess.py does not expect each forms contain any space.
-# Space is contained at least in French_GSD, but they are numeric so that not problematic.
-# Keeping a log just in case.
+# 1. If a sentence includes control character, then raise Error because preprocess.py does not expect it. (This is not a sanitization, so ideally this procedure should be in other function.)
+# 2. Convert all the parens into -LRB- or -RRB- to resolve ambiguity of phrase structure.
+# 3. Remove space in form because preprocess.py expect each forms do not contain any space.
+# - Space is contained at least in French_GSD, but they are numeric, therefore possibly not problematic.
 def sanitize_form(form):
     if Cf_included(form):
         raise CFContainedError
-    if ' ' in form:
-        logger.info(f'Space included in the form: {form}')
+    # if ' ' in form:
+    #     logger.info(f'Space included in the form: {form}')
     return form.replace('(', '-LRB-').replace(')', '-RRB-').replace('（', '-LRB-').replace('）', '-RRB-').replace(' ', '')
 
 
-def create_leaf(form, nt):
+def create_leaf(nt, form):
     return f'({nt} {sanitize_form(form)}) '
+
+
+def create_leaf_with_Tree(nt, form):
+    return Tree(nt, [sanitize_form(form)])
 
 
 def get_X_nt(token):
@@ -141,11 +118,11 @@ def get_dep_nt(token):
 def flat_converter(sentence, token, get_nt):
     children = extract_children(sentence, token)
     if len(children) == 1:
-        return create_leaf(token.form, get_nt(token))
+        return create_leaf(get_nt(token), token.form)
     constituency = f'({get_nt(token)} '
     for child_id in children:
         if child_id == int(token.id):
-            sub_constituency = f'({get_nt(token)} {sanitize_form(token.form)}) '
+            sub_constituency = create_leaf(get_nt(token), token.form)
         else:
             sub_constituency = flat_converter(
                 sentence, get_token_with_id(sentence, child_id), get_nt)
@@ -157,7 +134,7 @@ def make_phrase_from_left(sentence, token, left_children_ids,
                           right_children_ids, get_nt):
     if left_children_ids == []:
         if right_children_ids == []:
-            return Tree(get_nt(token), [sanitize_form(token.form)])
+            return create_leaf_with_Tree(get_nt(token), token.form)
         else:
             r_token = get_token_with_id(sentence, right_children_ids.pop(-1))
             return Tree(get_nt(token), [
@@ -183,7 +160,7 @@ def make_phrase_from_right(sentence, token, left_children_ids,
                            right_children_ids, get_nt):
     if right_children_ids == []:
         if left_children_ids == []:
-            return Tree(get_nt(token), [sanitize_form(token.form)])
+            return create_leaf_with_Tree(get_nt(token), token.form)
         else:
             l_token = get_token_with_id(sentence, left_children_ids.pop(0))
             return Tree(get_nt(token), [
@@ -267,25 +244,8 @@ def get_method_str(args):
     return f'{convert_method_str}-{label_method_str}'
 
 
-def extract_data_type(conllu_file_name):
-    if "train" in conllu_file_name:
-        return "train"
-    elif "dev" in conllu_file_name:
-        return "dev"
-    elif "test" in conllu_file_name:
-        return "test"
-    # this case (dataset is not train/dev/test) should be treated carefully
-    return "other"
-
-
 def find_conllu_files(source_path):
-    file_list = []
-    for conllu_file in Path(source_path).glob('**/*.conllu'):
-        file_info = {}
-        file_info['path'] = conllu_file
-        file_info['data_type'] = extract_data_type(conllu_file.name)
-        file_list.append(file_info)
-    return file_list
+    return [conllu_file for conllu_file in Path(source_path).glob('**/*.conllu')]
 
 
 def generate_path_info(args):
@@ -293,89 +253,3 @@ def generate_path_info(args):
     method_str = get_method_str(args)
     return files_to_convert, method_str, os.path.join(args.output_path, method_str)
 
-
-def main(args):
-    conllu_files_to_convert, method_str, output_dir = generate_path_info(args)
-
-    converter, get_nt = setup_functions(args)
-
-    for conllu_file in conllu_files_to_convert:
-        logger.info(
-            f'Converting {conllu_file["path"].name} with {method_str} method.')
-        corpus = pyconll.load_from_file(str(conllu_file["path"]))
-        
-        processed_sentence_num = 0
-        token_num = 0
-
-        inclempty_count = 0
-        cfcontained_count = 0
-        contain_none_count = 0
-        nonproj_count = 0
-        root_nonproj_count = 0
-
-        with open(os.path.join(output_dir, f'{conllu_file["data_type"]}.txt'),
-                  'w') as f:
-            with open(
-                    os.path.join(output_dir,
-                                 f'{conllu_file["data_type"]}.tokens'),
-                    'w') as g:
-                for i, sentence in enumerate(corpus):
-                    if i % 10000 == 0:
-                        logger.info(f'{i} data has been converted.')
-                    try:
-                        phrase_structure = general_converter(
-                            converter, sentence, get_nt)
-                        if len(sentence) == 1:
-                            phrase_structure = f'({get_nt(sentence[0])} {phrase_structure})'
-                        f.write(phrase_structure)
-                        f.write('\n')
-                        g.write(generate_tokens(sentence))
-                        g.write('\n')
-                        processed_sentence_num += 1
-                        token_num += len(sentence)
-                        # extract 5000 sentence for dev/test set
-                        if conllu_file["data_type"] != "train" and processed_sentence_num == args.dev_test_sentence_num:
-                            break
-                        if conllu_file["data_type"] == "train" and token_num == args.train_token_num:
-                            break
-                    except KeyError:
-                        inclempty_count += 1
-                        continue
-                    except ContainNoneError:
-                        contain_none_count += 1
-                        continue
-                    except NonProjError:
-                        nonproj_count += 1
-                        continue
-                    except RootNonProjError:
-                        root_nonproj_count += 1
-                        continue
-                    except CFContainedError:
-                        logger.info(f'Cf contained in {sentence_to_str(sentence)}')
-                        cfcontained_count += 1
-                        continue
-
-        logger.info(f'Number of sentence: {len(corpus)}')
-        logger.info(f'Number of tokens: {token_num}')
-        logger.info(f'converted: {processed_sentence_num}')
-
-        logger.info(f'Number of non-projective sentence: {nonproj_count}')
-        logger.info(f'Number of root-non-projective sentence: {root_nonproj_count}')
-        logger.info(f'Number of sentence with None: {contain_none_count}')
-        logger.info(f'Number of sentence with empty node: {inclempty_count}')
-        logger.info(f'Number of sentence with control character: {cfcontained_count}')
-
-
-if __name__ == '__main__':
-    args = parser.parse_args()
-    source_path, method_str, output_dir = generate_path_info(args)
-
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    handler = FileHandler(filename=f'{output_dir}/convert.log')
-    handler.setLevel(DEBUG)
-    handler.setFormatter(Formatter(fmt))
-    logger.addHandler(handler)
-
-    main(args)
