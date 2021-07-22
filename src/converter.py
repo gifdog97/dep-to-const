@@ -8,20 +8,28 @@ import unicodedata
 class NonProjError(Exception):
     pass
 
+
 class RootNonProjError(Exception):
     pass
 
+
 class CFContainedError(Exception):
     pass
+
 
 class ContainNoneError(Exception):
     pass
 
 
+# Since pyconll package sometimes fail to censor non-projective dependency tree that contains crossing above root edge,
+# function for handling this exception is defined here
 def rootcross_included(sentence):
     root_id = int(extract_head(sentence).id)
+
     def is_crossing_root(token_id, head_id):
-        return (token_id < root_id and root_id < head_id) or (token_id > root_id and root_id > head_id)
+        return (token_id < root_id
+                and root_id < head_id) or (token_id > root_id
+                                           and root_id > head_id)
 
     for token in sentence:
         head_id = token.head
@@ -29,6 +37,7 @@ def rootcross_included(sentence):
             return True
 
     return False
+
 
 def Cf_included(s):
     if s is None:
@@ -40,7 +49,7 @@ def Cf_included(s):
 
 
 def sentence_to_str(sentence):
-    s = "" 
+    s = ""
     for token in sentence:
         if token.form is not None:
             s += token.form
@@ -251,5 +260,5 @@ def find_conllu_files(source_path):
 def generate_path_info(args):
     files_to_convert = find_conllu_files(args.source_path)
     method_str = get_method_str(args)
-    return files_to_convert, method_str, os.path.join(args.output_path, method_str)
-
+    return files_to_convert, method_str, os.path.join(args.output_path,
+                                                      method_str)

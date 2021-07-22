@@ -22,8 +22,8 @@ python converter.py
 If source_path includes the treebank named train/dev/test set, the converted treebank is named according to the original name such as `train.txt`.
 In addition to converted treebank, the program outputs raw text separated by space, which is named such as `train.tokens`.
 
-Besides above, you need to set the labeling policy (described later).
-Currently we have four types of labeling policies and you need to choose one from them:
+Besides above, you need to set the labeling method (described later).
+Currently we have four types of labeling methods and you need to choose one from them:
 
 ```
 --without_label
@@ -32,7 +32,7 @@ Currently we have four types of labeling policies and you need to choose one fro
 --use_dep_label
 ```
 
-Example: Converting a Universal Dependencies corpus via flat method and without_label policy.
+Example: Converting a Universal Dependencies corpus via flat conversion and without_label method.
 
 ```
 python converter.py
@@ -50,12 +50,11 @@ Three types of methods are implemented: flat/left/right.
 These conversion algorithms work for any dependency structures, so long as they are projective.
 The details of algorithm is described in [Collins et al, 1999](https://www.aclweb.org/anthology/P99-1065.pdf).
 
-In short, flat method converts dependency structure into "flat" constituency structure.
-It converts dependents into children in the constituency structure at the same time.
+In short, flat method converts the dependency tree into the "flat" constituency tree.
+It converts dependents into children in the constituency tree at the same time.
 
 Left/right methods does not convert at the same time. Instead, they merge head and dependent one by one, in left-first or right-first way.
-These methods produce complete binary tree.
-As the algorithm suggests, constituency tree converted by left-first method tends to be right-branching (and vice versa for right-first method).
+These methods produce binary tree.
 
 ### Labeling policy
 We set following four types of nonterminals attached to resulting constituency tree:
