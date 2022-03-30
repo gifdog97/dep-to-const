@@ -21,9 +21,14 @@ class ContainNoneError(Exception):
     pass
 
 
+class NotContainRootError(Exception):
+    pass
+
 # Since pyconll package sometimes fail to censor non-projective dependency tree that contains crossing above root edge,
 # function for handling this exception is defined here
 def rootcross_included(sentence):
+    if extract_head(sentence) is None:
+        raise NotContainRootError
     root_id = int(extract_head(sentence).id)
 
     def is_crossing_root(token_id, head_id):
@@ -32,6 +37,8 @@ def rootcross_included(sentence):
                                            and root_id > head_id)
 
     for token in sentence:
+        if token.is_multiword():
+            continue
         head_id = token.head
         if is_crossing_root(int(token.id), int(head_id)):
             return True
@@ -216,6 +223,8 @@ def general_converter(converter, sentence, get_nt):
 def generate_tokens(sentence):
     plain_sentence = ""
     for token in sentence:
+        if token.is_multiword():
+            continue
         plain_sentence += sanitize_form(token.form) + ' '
     return plain_sentence.rstrip()
 

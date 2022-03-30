@@ -1,5 +1,6 @@
 import argparse
 import os
+import tempfile
 from converter import *
 import pyconll
 
@@ -15,6 +16,8 @@ parser = argparse.ArgumentParser()
 # directory parameters
 parser.add_argument('--source_path',
                     default='../../../resource/ud-treebanks-v2.7/English_EWT')
+parser.add_argument('--G18_conllid_file',
+                    default='')
 parser.add_argument('--output_path',
                     default='../../../resource/ud-converted')
 
@@ -26,17 +29,19 @@ parser.add_argument('--use_merged_pos_label', action='store_true')
 parser.add_argument('--use_dep_label', action='store_true')
 
 # other parameter(s)
-parser.add_argument('--dev_test_sentence_num', default=5000)
-parser.add_argument('--train_token_num', default=40000000)
+parser.add_argument('--dev_test_sentence_num', default=5000, type=int)
+parser.add_argument('--train_token_num', default=40000000, type=int)
 parser.add_argument('--write_deptree', action='store_true')
 
 
 def convert_conllu_files(args):
     conllu_files_to_convert, method_str, output_dir = generate_path_info(args)
+
     converter, get_nt = setup_functions(args)
-    original_deptree_dir = Path(os.path.join(args.output_path, "original_deptree"))
-    if not original_deptree_dir.exists():
-        original_deptree_dir.mkdir()
+    if args.write_deptree:
+        original_deptree_dir = Path(os.path.join(args.output_path, "original_deptree"))
+        if not original_deptree_dir.exists():
+            original_deptree_dir.mkdir()
 
     for conllu_file in conllu_files_to_convert:
         logger.info(f'Converting {conllu_file.name} with {method_str} method.')
@@ -50,12 +55,13 @@ def convert_conllu_files(args):
         contain_none_count = 0
         nonproj_count = 0
         root_nonproj_count = 0
+        notcontainroot_count = 0
 
         with open(os.path.join(output_dir, f'{conllu_file.stem}.txt'), 'w') as f, \
              open(os.path.join(output_dir,f'{conllu_file.stem}.tokens'), 'w') as g, \
-             original_deptree_dir.joinpath(conllu_file.name).open('a') as h:
+             original_deptree_dir.joinpath(conllu_file.name).open('w') as h:
             for i, sentence in enumerate(corpus):
-                if i % 10000 == 0:
+                if i % 100000 == 0:
                     logger.info(f'{i} data has been converted.')
                 try:
                     phrase_structure = general_converter(
@@ -72,10 +78,10 @@ def convert_conllu_files(args):
 
                     processed_sentence_num += 1
                     token_num += len(sentence)
-                    # extract 5000 sentence for dev/test set
+                    # extract xx sentence for dev/test set
                     if "train" not in conllu_file.stem and processed_sentence_num == args.dev_test_sentence_num:
                         break
-                    if "train" in conllu_file.stem and token_num > int(args.train_token_num):
+                    if "train" in conllu_file.stem and token_num > args.train_token_num:
                         break
                 except KeyError:
                     inclempty_count += 1
@@ -93,6 +99,9 @@ def convert_conllu_files(args):
                     logger.info(f'Cf contained in {sentence_to_str(sentence)}')
                     cfcontained_count += 1
                     continue
+                except NotContainRootError:
+                    notcontainroot_count += 1
+                    continue
 
         logger.info(f'Corpus size (sent): {len(corpus)}')
         logger.info(f'Converted sentences: {processed_sentence_num}')
@@ -103,11 +112,37 @@ def convert_conllu_files(args):
         logger.info(f'Sentences with None: {contain_none_count}')
         logger.info(f'Sentences with empty node: {inclempty_count}')
         logger.info(f'Sentences with control character: {cfcontained_count}')
+        logger.info(f'Sentences with not root contained: {notcontainroot_count}')
 
+def remove_data_in_evalset(source_file, G18_conllid_file, tmp_file):
+    conllid_set = set()
+    with open(G18_conllid_file) as f:
+        for conllid in f:
+            conllid_set.add(conllid.strip())
+    with open(source_file) as f, open(tmp_file, 'w') as g:
+        for line in f:
+            if line.startswith('#') and line.split(' ')[1] == 'sent_id':
+                if line.split(' ')[3].strip() in conllid_set:
+                    to_add = False
+                else:
+                    to_add = True
+                    g.write(f'{line}')
+            else:
+                if to_add:
+                    g.write(f'{line}')
+    return
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    source_path, method_str, output_dir = generate_path_info(args)
+    conllu_files_to_convert, method_str, output_dir = generate_path_info(args)
+
+    if args.G18_conllid_file:
+        f = tempfile.TemporaryDirectory()
+        for conllu_file in conllu_files_to_convert:
+            remove_data_in_evalset(conllu_file, args.G18_conllid_file, f'{f.name}/{conllu_file.name}')
+        args.source_path = f.name
+
+    conllu_files_to_convert, method_str, output_dir = generate_path_info(args)
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
